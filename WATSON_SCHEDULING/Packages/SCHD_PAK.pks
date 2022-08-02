@@ -75,8 +75,8 @@ AS
         RETURN DATE;
 
     PROCEDURE gen_sched (p_plant_code      IN VARCHAR2
-                       , p_start_cal_dt    IN DATE
-                       , p_end_cal_dt      IN DATE
+                       , p_start_dt        IN DATE
+                       , p_end_dt          IN DATE
                        , p_setup_id        IN NUMBER := NULL
                        , p_break_id        IN NUMBER := NULL
                        , p_area_id         IN NUMBER := NULL

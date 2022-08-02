@@ -1,3 +1,5 @@
+WHENEVER SQLERROR CONTINUE;
+
 DROP TABLE watson.schd_cal_break_setup CASCADE CONSTRAINTS;
 
 CREATE TABLE watson.schd_cal_break_setup
@@ -68,36 +70,5 @@ COMMENT ON COLUMN watson.schd_cal_break_setup.ins_user IS 'User who initially cr
 COMMENT ON COLUMN watson.schd_cal_break_setup.upd_dt IS 'Date/Time when record was last edited';
 COMMENT ON COLUMN watson.schd_cal_break_setup.upd_user IS 'User who last edited record';
 
-CREATE UNIQUE INDEX SCHD_CAL_BREAK_SETUP_U01 ON WATSON.SCHD_CAL_BREAK_SETUP ( PLANT_CODE, AREA_ID, SHIFT_ID, TEAM_ID, ROTATION_FLAG, ROTATION_DAY, START_DT, END_DT);
 
-CREATE OR REPLACE TRIGGER WATSON.BIU_schd_cal_break_setup
-    BEFORE INSERT OR UPDATE
-    ON WATSON.schd_cal_break_setup
-    REFERENCING OLD AS OLD NEW AS NEW
-    FOR EACH ROW
-DECLARE
-    l_user VARCHAR2(32) := upper(sys_context( 'userenv', 'os_user' ));
-    
-BEGIN
-    IF INSERTING
-    THEN
-        :NEW.INS_DT := SYSDATE;
-        :NEW.INS_USER := nvl(:NEW.UPD_USER,l_user);
-        
-        :NEW.ACTIVE_FLAG := NVL(:NEW.ACTIVE_FLAG,'Y');
-        
-        /* WANT DATE/TIME, NOT TRUNCATED INCASE ACTIVATION IS TIME SENSITIVE */
-        :NEW.ACTIVATION_DT := NVL(:NEW.ACTIVATION_DT, SYSDATE); 
-    END IF;
 
-    IF UPDATING
-    THEN
-        :NEW.UPD_DT := SYSDATE;
-        :NEW.UPD_USER := nvl(:NEW.UPD_USER,l_user);
-    END IF;
-EXCEPTION
-    WHEN OTHERS
-    THEN
-        RAISE;
-END; -- END TRIGGER    
-/

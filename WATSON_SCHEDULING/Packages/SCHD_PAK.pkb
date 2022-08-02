@@ -237,8 +237,8 @@ AS
     END validate_break_id;
 
     PROCEDURE gen_sched (p_plant_code      IN VARCHAR2
-                       , p_start_cal_dt    IN DATE
-                       , p_end_cal_dt      IN DATE
+                       , p_start_dt        IN DATE
+                       , p_end_dt          IN DATE
                        , p_setup_id        IN NUMBER := NULL
                        , p_break_id        IN NUMBER := NULL
                        , p_area_id         IN NUMBER := NULL
@@ -272,6 +272,8 @@ AS
         /* --------------------------------------------------------------- */
 
         lb_valid   BOOLEAN;
+        ln_cnt_shift     pls_integer;
+        ln_cnt_break     pls_integer;
     BEGIN
         lb_valid := FALSE;
 
@@ -280,26 +282,26 @@ AS
             RAISE ex_bad_plt;
         END IF;
 
-        IF TRUNC (p_start_cal_dt) <= TRUNC (SYSDATE)
+        IF TRUNC (p_start_dt) <= TRUNC (SYSDATE)
         THEN
             raise_application_error (ex_bad_date_nbr
                                    , 'Start MUST > Today''s Date');
         END IF;
 
-        IF TRUNC (p_start_cal_dt) > TRUNC (p_end_cal_dt)
+        IF TRUNC (p_start_dt) > TRUNC (p_end_dt)
         THEN
             raise_application_error (ex_bad_date_nbr
                                    , 'Start Date MUST <= End Date');
         END IF;
 
 
-        IF TRUNC (p_end_cal_dt) <= TRUNC (p_start_cal_dt)
+        IF TRUNC (p_end_dt) <= TRUNC (p_start_dt)
         THEN
             raise_application_error (ex_bad_date_nbr
                                    , 'Start MUST > START Date');
         END IF;
 
-        IF TRUNC (p_end_cal_dt) > TRUNC (p_start_cal_dt) + 30
+        IF TRUNC (p_end_dt) > TRUNC (p_start_dt) + 30
         THEN
             raise_application_error (
                 ex_bad_date_nbr
@@ -336,210 +338,196 @@ AS
             END IF;
         END IF;
 
-        DBMS_OUTPUT.PUT_LINE('Processing Site Code: ' || p_plant_code);
         -- if we have gotten here, all items are valid and OK to proceed.
         -- load shift calendar entries first.
-        INSERT INTO watson.schd_cal_shift (schd_cal_setup_id
-                                         , schd_cal_break_setup_id
-                                         , break_type
-                                         , plant_code
-                                         , area_id
-                                         , area_name
-                                         , shift_id
-                                         , shift_name
-                                         , team_id
-                                         , team_name
-                                         , start_dt
-                                         , start_dow
-                                         , start_hod
-                                         , start_moh
-                                         , end_dt
-                                         , end_dow
-                                         , end_hod
-                                         , end_moh
-                                         , dur_secs
-                                         , rotation_day
-                                         , rotation_days
-                                         , rotation_flag
-                                         , edited_flag
-                                         , active_flag
-                                         , activation_dt)
-              SELECT schd_cal_setup_id
-                   , schd_cal_break_setup_id
-                   , break_type
-                   , plant_code
-                   , area_id
-                   , area_name
-                   , shift_id
-                   , shift_name
-                   , team_id
-                   , team_name
-                   , next_start_dt                                              start_dt
-                   , TO_NUMBER (TO_CHAR (next_start_dt, 'D')) - 1               start_dow
-                   , start_hod
-                   , start_moh
-                   , next_end_dt                                                end_dt
-                   , TO_NUMBER (TO_CHAR (next_end_dt, 'D')) - 1                 end_dow
-                   , end_hod
-                   , end_moh
-                   , ROUND ((next_end_dt - next_start_dt) * 24 * 60 * 60, 0)    dur_secs
-                   , rotation_day
-                   , rotation_days
-                   , rotation_flag
-                   , 'N'                                                        edited_flag
-                   , 'Y'                                                        active_flag
-                   , SYSDATE                                                    activation_dt
-                FROM (SELECT s.*
-                           ,   MOD (TRUNC (d.range_start_dt) - TRUNC (start_dt)
-                                  , rotation_days)
-                             - 1                            calc_start_dow
-                           ,   TRUNC (d.range_start_dt)
-                             + MOD (TRUNC (d.range_start_dt) - TRUNC (start_dt)
-                                  , rotation_days)
-                             + start_hod / 24
-                             + start_moh / 24 / 60          next_start_dt
-                           ,   (  TRUNC (d.range_start_dt)
-                                + MOD (
-                                        TRUNC (d.range_start_dt)
-                                      - TRUNC (start_dt)
-                                    , rotation_days)
-                                + start_hod / 24
-                                + start_moh / 24 / 60)
-                             + (dur_secs / 24 / 60 / 60)    next_end_dt
-                           , d.range_start_dt
-                           , d.range_end_dt
-                        FROM watson.v_schd_cal_setup s
-                           , (SELECT TRUNC (p_start_cal_dt) - 1    range_start_dt
-                                   , TRUNC (p_end_cal_dt) + 1      range_end_dt
-                                FROM DUAL) d
-                       WHERE 1 = 1
-                         AND plant_code = p_plant_code
-                         AND area_id BETWEEN NVL (p_area_id, 0)
-                                         AND NVL (p_area_id, 9999999)
-                         AND shift_id BETWEEN NVL (p_shift_id, 0)
-                                          AND NVL (p_shift_id, 9999999)
-                         AND schd_cal_setup_id BETWEEN NVL (p_setup_id, 0)
-                                                   AND NVL (p_setup_id
-                                                          , 99999999)
-                         AND schd_cal_break_setup_id BETWEEN NVL (p_break_id
-                                                                , 0)
-                                                         AND NVL (p_break_id
-                                                                , 99999999)
-                         AND rotation_flag LIKE NVL (p_rotation_flag, '%')
-                         AND activation_dt <= SYSDATE
-                         AND active_flag = 'Y')
-               WHERE next_start_dt BETWEEN range_start_dt AND range_end_dt
-                 AND next_end_dt BETWEEN range_start_dt + 1
-                                     AND range_end_dt + 1
-                 AND break_type = 0
-            ORDER BY plant_code
-                   , area_name
-                   , next_start_dt
-                   , calc_start_dow
-                   , next_end_dt;
-                   
-        DBMS_OUTPUT.PUT_LINE('Shift Entries Added: ' || sql%rowcount);
-                   
-        INSERT INTO watson.schd_cal_break (schd_cal_setup_id
-                                         , schd_cal_break_setup_id
-                                         , break_type
-                                         , plant_code
-                                         , area_id
-                                         , area_name
-                                         , shift_id
-                                         , shift_name
-                                         , team_id
-                                         , team_name
-                                         , start_dt
-                                         , start_dow
-                                         , start_hod
-                                         , start_moh
-                                         , end_dt
-                                         , end_dow
-                                         , end_hod
-                                         , end_moh
-                                         , dur_secs
-                                         , rotation_day
-                                         , rotation_days
-                                         , rotation_flag
-                                         , edited_flag
-                                         , active_flag
-                                         , activation_dt)
-              SELECT schd_cal_setup_id
-                   , schd_cal_break_setup_id
-                   , break_type
-                   , plant_code
-                   , area_id
-                   , area_name
-                   , shift_id
-                   , shift_name
-                   , team_id
-                   , team_name
-                   , next_start_dt                                              start_dt
-                   , TO_NUMBER (TO_CHAR (next_start_dt, 'D')) - 1               start_dow
-                   , start_hod
-                   , start_moh
-                   , next_end_dt                                                end_dt
-                   , TO_NUMBER (TO_CHAR (next_end_dt, 'D')) - 1                 end_dow
-                   , end_hod
-                   , end_moh
-                   , ROUND ((next_end_dt - next_start_dt) * 24 * 60 * 60, 0)    dur_secs
-                   , rotation_day
-                   , rotation_days
-                   , rotation_flag
-                   , 'N'                                                        edited_flag
-                   , 'Y'                                                        active_flag
-                   , SYSDATE                                                    activation_dt
-                FROM (SELECT s.*
-                           ,   MOD (TRUNC (d.range_start_dt) - TRUNC (start_dt)
-                                  , rotation_days)
-                             - 1                            calc_start_dow
-                           ,   TRUNC (d.range_start_dt)
-                             + MOD (TRUNC (d.range_start_dt) - TRUNC (start_dt)
-                                  , rotation_days)
-                             + start_hod / 24
-                             + start_moh / 24 / 60          next_start_dt
-                           ,   (  TRUNC (d.range_start_dt)
-                                + MOD (
-                                        TRUNC (d.range_start_dt)
-                                      - TRUNC (start_dt)
-                                    , rotation_days)
-                                + start_hod / 24
-                                + start_moh / 24 / 60)
-                             + (dur_secs / 24 / 60 / 60)    next_end_dt
-                           , d.range_start_dt
-                           , d.range_end_dt
-                        FROM watson.v_schd_cal_setup s
-                           , (SELECT TRUNC (p_start_cal_dt) - 1    range_start_dt
-                                   , TRUNC (p_end_cal_dt) + 1      range_end_dt
-                                FROM DUAL) d
-                       WHERE 1 = 1
-                         AND plant_code = p_plant_code
-                         AND area_id BETWEEN NVL (p_area_id, 0)
-                                         AND NVL (p_area_id, 9999999)
-                         AND shift_id BETWEEN NVL (p_shift_id, 0)
-                                          AND NVL (p_shift_id, 9999999)
-                         AND schd_cal_setup_id BETWEEN NVL (p_setup_id, 0)
-                                                   AND NVL (p_setup_id
-                                                          , 99999999)
-                         AND schd_cal_break_setup_id BETWEEN NVL (p_break_id
-                                                                , 0)
-                                                         AND NVL (p_break_id
-                                                                , 99999999)
-                         AND rotation_flag LIKE NVL (p_rotation_flag, '%')
-                         AND activation_dt <= SYSDATE
-                         AND active_flag = 'Y')
-               WHERE next_start_dt BETWEEN range_start_dt AND range_end_dt
-                 AND next_end_dt BETWEEN range_start_dt + 1
-                                     AND range_end_dt + 1
-                 AND break_type = 1
-            ORDER BY plant_code
-                   , area_name
-                   , next_start_dt
-                   , calc_start_dow
-                   , next_end_dt;                   
+        DELETE FROM
+            watson.schd_cal_shift
+              WHERE plant_code = p_plant_code
+                AND start_dt BETWEEN TRUNC (p_start_dt) AND TRUNC (p_end_dt)
+                AND area_id = NVL (p_area_id, area_id)
+                AND shift_id = NVL (p_shift_id, shift_id)
+                AND team_id = NVL (p_team_id, team_id)
+                AND break_type = 0
+                AND ((p_override_flag = 'N' AND edited_flag != 'Y')
+                  OR (p_override_flag = 'Y'))
+                AND TRUNC (p_start_dt) > SYSDATE;
 
-        DBMS_OUTPUT.PUT_LINE('Breaks Entries Added: ' || sql%rowcount);
+        dbms_output.put_line(SQL%ROWCOUNT||' Rows Deleted from SCHD_CAL_SHIFT table');
+
+            DELETE FROM
+            watson.schd_cal_break
+              WHERE plant_code = p_plant_code
+                AND start_dt BETWEEN TRUNC (p_start_dt) AND TRUNC (p_end_dt)
+                AND area_id = NVL (p_area_id, area_id)
+                AND shift_id = NVL (p_shift_id, shift_id)
+                AND team_id = NVL (p_team_id, team_id)
+                AND break_type = 1
+                AND ((p_override_flag = 'N' AND edited_flag != 'Y')
+                  OR (p_override_flag = 'Y'))
+                AND TRUNC (p_start_dt) > SYSDATE;
+                
+                dbms_output.put_line(SQL%ROWCOUNT||' Rows Deleted from SCHD_CAL_BREAK table');
+                
+        ln_cnt_shift := 0;
+        ln_cnt_break := 0;
+        FOR lrec_ins
+            IN (  SELECT plant_code
+                       , schd_cal_setup_id
+                       , schd_cal_break_setup_id
+                       , break_type
+                       , area_id
+                       , area_name
+                       , shift_id
+                       , shift_name
+                       , team_id
+                       , team_name
+                       , next_start_dt                                   start_dt
+                       , TO_NUMBER (TO_CHAR (next_start_dt, 'D')) - 1    start_dow
+                       , start_hod
+                       , start_moh
+                       , next_end_dt                                     end_dt
+                       , TO_NUMBER (TO_CHAR (next_end_dt, 'D')) - 1      end_dow
+                       , end_hod
+                       , end_moh
+                       , ROUND ((next_end_dt - next_start_dt) * 24 * 60 * 60
+                              , 0)                                       dur_secs
+                       , rotation_day
+                       , rotation_days
+                       , rotation_flag
+                       , 'N'                                             edited_flag
+                       , 'Y'                                             active_flag
+                       , SYSDATE                                         activation_dt
+                   FROM (SELECT s.*
+                              ,   MOD (
+                                        TRUNC (d.range_start_dt)
+                                      - TRUNC (start_dt)
+                                    , rotation_days)
+                                - 1                            calc_start_dow
+                              ,   TRUNC (d.range_start_dt)
+                                + MOD (
+                                        TRUNC (d.range_start_dt)
+                                      - TRUNC (start_dt)
+                                    , rotation_days)
+                                + start_hod / 24
+                                + start_moh / 24 / 60          next_start_dt
+                              ,   (  TRUNC (d.range_start_dt)
+                                   + MOD (
+                                           TRUNC (d.range_start_dt)
+                                         - TRUNC (start_dt)
+                                       , rotation_days)
+                                   + start_hod / 24
+                                   + start_moh / 24 / 60)
+                                + (dur_secs / 24 / 60 / 60)    next_end_dt
+                              , d.range_start_dt
+                              , d.range_end_dt
+                           FROM watson.v_schd_cal_setup s
+                              , (SELECT TRUNC (p_start_dt) - 1    range_start_dt
+                                      , TRUNC (p_end_dt) + 1      range_end_dt
+                                   FROM DUAL) d
+                          WHERE 1 = 1
+                            AND plant_code = p_plant_code
+                            AND area_id BETWEEN NVL (p_area_id, 0)
+                                            AND NVL (p_area_id, 9999999)
+                            AND shift_id BETWEEN NVL (p_shift_id, 0)
+                                             AND NVL (p_shift_id, 9999999)
+                            AND NVL (schd_cal_setup_id, 0) BETWEEN NVL (
+                                                                       p_setup_id
+                                                                     , 0)
+                                                               AND NVL (
+                                                                       p_setup_id
+                                                                     , 99999999)
+                            AND NVL (schd_cal_break_setup_id, 0) BETWEEN NVL (
+                                                                             p_break_id
+                                                                           , 0)
+                                                                     AND NVL (
+                                                                             p_break_id
+                                                                           , 99999999)
+                            AND rotation_flag LIKE NVL (p_rotation_flag, '%')
+                            AND activation_dt <= SYSDATE
+                            AND active_flag = 'Y')
+                  WHERE next_start_dt BETWEEN range_start_dt AND range_end_dt
+                    AND next_end_dt BETWEEN range_start_dt + 1
+                                        AND range_end_dt + 1
+                    AND break_type in (0,1)
+               ORDER BY plant_code
+                      , area_name
+                      , next_start_dt
+                      , calc_start_dow
+                      , break_type
+                      , next_end_dt)
+        LOOP
+            BEGIN   
+                EXECUTE IMMEDIATE '            
+                INSERT INTO watson.schd_cal_'||CASE WHEN LREC_INS.BREAK_TYPE=0 THEN 'shift' else 'break' end||' (schd_cal_setup_id
+                                                 , schd_cal_break_setup_id
+                                                 , break_type
+                                                 , plant_code
+                                                 , area_id
+                                                 , area_name
+                                                 , shift_id
+                                                 , shift_name
+                                                 , team_id
+                                                 , team_name
+                                                 , start_dt
+                                                 , start_dow
+                                                 , start_hod
+                                                 , start_moh
+                                                 , end_dt
+                                                 , end_dow
+                                                 , end_hod
+                                                 , end_moh
+                                                 , dur_secs
+                                                 , rotation_day
+                                                 , rotation_days
+                                                 , rotation_flag
+                                                 , edited_flag
+                                                 , activation_dt
+                                                 , active_flag)
+                     VALUES (:1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12
+                            ,:13,:14,:15,:16,:17,:18,:19,:20,:21,:22
+                            ,:23,:24,:25)'
+                     using   lrec_ins.schd_cal_setup_id
+                           , lrec_ins.schd_cal_break_setup_id
+                           , lrec_ins.break_type
+                           , lrec_ins.plant_code
+                           , lrec_ins.area_id
+                           , lrec_ins.area_name
+                           , lrec_ins.shift_id
+                           , lrec_ins.shift_name
+                           , lrec_ins.team_id
+                           , lrec_ins.team_name
+                           , lrec_ins.start_dt
+                           , lrec_ins.start_dow
+                           , lrec_ins.start_hod
+                           , lrec_ins.start_moh
+                           , lrec_ins.end_dt
+                           , lrec_ins.end_dow
+                           , lrec_ins.end_hod
+                           , lrec_ins.end_moh
+                           , lrec_ins.dur_secs
+                           , lrec_ins.rotation_day
+                           , lrec_ins.rotation_days
+                           , lrec_ins.rotation_flag
+                           , lrec_ins.edited_flag
+                           , lrec_ins.activation_dt
+                           , lrec_ins.active_flag;
+                           
+                           case when lrec_ins.break_type = 0 then
+                           ln_cnt_shift := ln_cnt_shift + 1;
+                           when lrec_ins.break_type != 0 then
+                           ln_cnt_break := ln_cnt_break + 1;
+                           else
+                             null;
+                           end case;
+            EXCEPTION
+                WHEN DUP_VAL_ON_INDEX
+                THEN
+                    NULL;                                            -- IGNORE
+            END;
+        END LOOP;
+
+        dbms_output.put_line(ln_cnt_shift||' Rows Added to SCHD_CAL_SHIFT table');
+        dbms_output.put_line(ln_cnt_break||' Rows Added to SCHD_CAL_BREAK table');
 
         COMMIT;
     EXCEPTION

@@ -1,4 +1,4 @@
-@..\sequences\create_sequence_schd_cal_shift_seq.sql
+WHENEVER SQLERROR CONTINUE;
 
 drop table watson.schd_cal_shift;
 
@@ -66,10 +66,6 @@ COMMENT ON COLUMN watson.schd_cal_shift.ins_user IS 'User who initially created 
 COMMENT ON COLUMN watson.schd_cal_shift.upd_dt IS 'Date/Time when record was last edited.';
 COMMENT ON COLUMN watson.schd_cal_shift.upd_user IS 'User who last edited record';
 
-
-CREATE UNIQUE INDEX schd_cal_shift_U01 ON WATSON.schd_cal_shift( PLANT_CODE, AREA_ID, SHIFT_ID, TEAM_ID, ROTATION_FLAG, ROTATION_DAY, START_DT, END_DT);
-
-@../Triggers/create_trigger_biu_schd_cal_shift.trg
-
-@../Data_Loading/load_schd_cal_shift.sql
+/* GRANTS */
+--GRANT INSERT, UPDATE, DELETE, SELECT ON WATSON.SCHD_CAL_SHIFT TO 
 
