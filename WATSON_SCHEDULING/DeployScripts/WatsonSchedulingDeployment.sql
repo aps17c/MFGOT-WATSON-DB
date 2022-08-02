@@ -40,6 +40,10 @@ WHENEVER SQLERROR CONTINUE;
 @&dir\triggers\create_trigger_biud_schd_cal_setup.trg
 @&dir\indexes\create_index_schd_cal_setup_u01.sql
 
+@&dir\tables\create_table_schd_cal_break_setup.sql
+@&dir\triggers\create_trigger_biud_schd_cal_break_setup.trg
+@&dir\indexes\create_index_schd_cal_break_setup_u01.sql
+
 @&dir\tables\create_table_schd_cal_shift.sql
 @&dir\triggers\create_trigger_biud_schd_cal_shift.trg
 @&dir\indexes\create_index_schd_cal_shift_u01.sql

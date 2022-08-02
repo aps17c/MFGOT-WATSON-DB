@@ -1,35 +1,3 @@
-/* ---------------------------------------------------------------------
- *     Purpose:  Use this script load tables for SCHD project.
- * -------------------------------------------------------------------*/
-
-/* LOAD LEGACY DATA FOR SHIFT */
-
-INSERT INTO WATSON.SCHD_SHIFT( PLANT_CODE
-                             , SHIFT_TYPE
-                             , SHIFT_NAME
-                             , SHIFT_DESC
-                             , ASSOC_TABLE )
-    SELECT PLANT_CODE
-         , 'LINE'
-         , SHIFT_NAME
-         , SHIFT_COMMENT
-         , 'FILL_SHIFTS'
-      FROM WATSON.FILL_SHIFTS@WATSONP.WORLD;
-
-/* LOAD SCHD_TEAM DATA FROM LEGACY */
-
-INSERT INTO WATSON.SCHD_TEAM( PLANT_CODE
-                            , TEAM_TYPE
-                            , TEAM_NAME
-                            , TEAM_DESC )
-    SELECT PLANT_CODE
-         , 'DEFAULT'
-         , 'DEFAULT'
-         , 'Default TEAM'
-      FROM watson.locations@WATSONP.WORLD;
-
-/* LOAD SCHD_AREA FROM LEGACY TABLES */
-
 INSERT INTO watson.schd_area( PLANT_CODE
                             , AREA_TYPE
                             , AREA_NAME
@@ -77,6 +45,3 @@ INSERT INTO watson.schd_area( PLANT_CODE
                  WHERE S.PLANT_CODE = R.PLANT_CODE
                    AND S.AREA_TYPE = 'ROBOT'
                    AND S.AREA_NAME = R.EQUIPMENT);
-
-/* only commit in script */
-COMMIT;
