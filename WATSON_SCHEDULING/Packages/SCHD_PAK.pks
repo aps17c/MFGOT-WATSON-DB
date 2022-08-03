@@ -87,5 +87,11 @@ AS
                        , p_team_id         IN NUMBER := NULL
                        , p_rotation_flag   IN VARCHAR2 := NULL
                        , p_override_flag   IN VARCHAR2 := 'N');
+
+    PROCEDURE gen_schd (p_plant_code   IN VARCHAR2 := NULL
+                      , p_start_dt     IN DATE := TRUNC (SYSDATE) + 7
+                      , p_days_out     IN NUMBER := 1);
+    
+    
 END schd_pak;
 /

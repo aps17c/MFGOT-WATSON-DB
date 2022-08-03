@@ -480,31 +480,32 @@ AS
                 CASE
                     WHEN lrec_ins.break_type = 0
                     THEN
-                        INSERT INTO watson.schd_cal_shift (schd_cal_setup_id
-                                                         , schd_cal_break_setup_id
-                                                         , break_type
-                                                         , plant_code
-                                                         , area_id
-                                                         , area_name
-                                                         , shift_id
-                                                         , shift_name
-                                                         , team_id
-                                                         , team_name
-                                                         , start_dt
-                                                         , start_dow
-                                                         , start_hod
-                                                         , start_moh
-                                                         , end_dt
-                                                         , end_dow
-                                                         , end_hod
-                                                         , end_moh
-                                                         , dur_secs
-                                                         , rotation_day
-                                                         , rotation_days
-                                                         , rotation_flag
-                                                         , edited_flag
-                                                         , activation_dt
-                                                         , active_flag)
+                        INSERT INTO watson.schd_cal_shift (
+                                        schd_cal_setup_id
+                                      , schd_cal_break_setup_id
+                                      , break_type
+                                      , plant_code
+                                      , area_id
+                                      , area_name
+                                      , shift_id
+                                      , shift_name
+                                      , team_id
+                                      , team_name
+                                      , start_dt
+                                      , start_dow
+                                      , start_hod
+                                      , start_moh
+                                      , end_dt
+                                      , end_dow
+                                      , end_hod
+                                      , end_moh
+                                      , dur_secs
+                                      , rotation_day
+                                      , rotation_days
+                                      , rotation_flag
+                                      , edited_flag
+                                      , activation_dt
+                                      , active_flag)
                              VALUES (lrec_ins.schd_cal_setup_id
                                    , lrec_ins.schd_cal_break_setup_id
                                    , lrec_ins.break_type
@@ -622,5 +623,48 @@ AS
         THEN
             RAISE;
     END gen_sched;
+
+    PROCEDURE gen_schd (p_plant_code   IN VARCHAR2 := NULL
+                      , p_start_dt     IN DATE := TRUNC (SYSDATE) + 7
+                      , p_days_out     IN NUMBER := 1)
+    AS
+    BEGIN
+        set_logging ('Y');
+
+        LOG (
+               'Processing Date Range: '
+            || TO_CHAR (TRUNC (p_start_dt), 'MM/DD/YYYY')
+            || ' thru '
+            || TO_CHAR (TRUNC (p_start_dt) + p_days_out, 'mm/dd/yyyy'));
+
+        LOG ('---------------------------------');
+
+        FOR lrec_plt
+            IN (SELECT *
+                 FROM watson.locations
+                WHERE plant_code LIKE TRIM (UPPER (NVL (p_plant_code, '%'))))
+        LOOP
+            BEGIN
+                LOG (
+                       'Processing Plant: '
+                    || lrec_plt.plant_name
+                    || '-('
+                    || lrec_plt.plant_code
+                    || ')');
+                gen_sched (p_plant_code      => lrec_plt.plant_code
+                         , p_start_dt        => TRUNC (p_start_dt)
+                         , p_end_dt          => TRUNC (p_start_dt) + p_days_out
+                         , p_setup_id        => NULL
+                         , p_break_id        => NULL
+                         , p_area_id         => NULL
+                         , p_shift_id        => NULL
+                         , p_team_id         => NULL
+                         , p_rotation_flag   => NULL
+                         , p_override_flag   => 'N');
+            END;
+
+            LOG ('---------------------------------');
+        END LOOP;
+    END gen_schd;
 END schd_pak;
 /
