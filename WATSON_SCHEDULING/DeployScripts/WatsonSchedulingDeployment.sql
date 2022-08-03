@@ -52,6 +52,8 @@ WHENEVER SQLERROR CONTINUE;
 @&dir\triggers\create_trigger_biud_schd_cal_break.trg
 @&dir\indexes\create_index_schd_cal_break_u01.sql
 
+@&dir\Views\create_view_v_schd_cal_setup.vw
+
 @&dir\Packages\schd_pak.pks
 @&dir\Packages\schd_pak.pkb
 

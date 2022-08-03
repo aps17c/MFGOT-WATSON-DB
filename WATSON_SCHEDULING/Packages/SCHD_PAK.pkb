@@ -59,6 +59,25 @@ AS
     ex_bad_team_id_nbr    CONSTANT NUMBER := -20011;
     PRAGMA EXCEPTION_INIT (ex_bad_team_id, -20011);
 
+    m_logging_enabled              BOOLEAN := TRUE;
+
+    PROCEDURE set_logging (p_enable_disable_flag IN VARCHAR2:= 'Y')
+    IS
+    BEGIN
+        m_logging_enabled :=
+            TRIM (UPPER (SUBSTR (p_enable_disable_flag, 1, 1))) IN ('Y', 'E');
+    END set_logging;
+
+
+    PROCEDURE LOG (p_msg IN VARCHAR2)
+    IS
+    BEGIN
+        IF m_logging_enabled
+        THEN
+            DBMS_OUTPUT.put_line (p_msg);
+        END IF;
+    END LOG;
+
     FUNCTION validate_nbr_range (p_value         IN NUMBER
                                , p_limit_start   IN NUMBER
                                , p_limit_end     IN NUMBER)
@@ -271,9 +290,9 @@ AS
         /* |                                                               */
         /* --------------------------------------------------------------- */
 
-        lb_valid   BOOLEAN;
-        ln_cnt_shift     pls_integer;
-        ln_cnt_break     pls_integer;
+        lb_valid       BOOLEAN;
+        ln_cnt_shift   PLS_INTEGER;
+        ln_cnt_break   PLS_INTEGER;
     BEGIN
         lb_valid := FALSE;
 
@@ -352,9 +371,9 @@ AS
                   OR (p_override_flag = 'Y'))
                 AND TRUNC (p_start_dt) > SYSDATE;
 
-        dbms_output.put_line(SQL%ROWCOUNT||' Rows Deleted from SCHD_CAL_SHIFT table');
+        LOG (SQL%ROWCOUNT || ' Rows Deleted from SCHD_CAL_SHIFT table');
 
-            DELETE FROM
+        DELETE FROM
             watson.schd_cal_break
               WHERE plant_code = p_plant_code
                 AND start_dt BETWEEN TRUNC (p_start_dt) AND TRUNC (p_end_dt)
@@ -365,11 +384,12 @@ AS
                 AND ((p_override_flag = 'N' AND edited_flag != 'Y')
                   OR (p_override_flag = 'Y'))
                 AND TRUNC (p_start_dt) > SYSDATE;
-                
-                dbms_output.put_line(SQL%ROWCOUNT||' Rows Deleted from SCHD_CAL_BREAK table');
-                
+
+        LOG (SQL%ROWCOUNT || ' Rows Deleted from SCHD_CAL_BREAK table');
+
         ln_cnt_shift := 0;
         ln_cnt_break := 0;
+
         FOR lrec_ins
             IN (  SELECT plant_code
                        , schd_cal_setup_id
@@ -448,7 +468,7 @@ AS
                   WHERE next_start_dt BETWEEN range_start_dt AND range_end_dt
                     AND next_end_dt BETWEEN range_start_dt + 1
                                         AND range_end_dt + 1
-                    AND break_type in (0,1)
+                    AND break_type IN (0, 1)
                ORDER BY plant_code
                       , area_name
                       , next_start_dt
@@ -456,78 +476,133 @@ AS
                       , break_type
                       , next_end_dt)
         LOOP
-            BEGIN   
-                EXECUTE IMMEDIATE '            
-                INSERT INTO watson.schd_cal_'||CASE WHEN LREC_INS.BREAK_TYPE=0 THEN 'shift' else 'break' end||' (schd_cal_setup_id
-                                                 , schd_cal_break_setup_id
-                                                 , break_type
-                                                 , plant_code
-                                                 , area_id
-                                                 , area_name
-                                                 , shift_id
-                                                 , shift_name
-                                                 , team_id
-                                                 , team_name
-                                                 , start_dt
-                                                 , start_dow
-                                                 , start_hod
-                                                 , start_moh
-                                                 , end_dt
-                                                 , end_dow
-                                                 , end_hod
-                                                 , end_moh
-                                                 , dur_secs
-                                                 , rotation_day
-                                                 , rotation_days
-                                                 , rotation_flag
-                                                 , edited_flag
-                                                 , activation_dt
-                                                 , active_flag)
-                     VALUES (:1,:2,:3,:4,:5,:6,:7,:8,:9,:10,:11,:12
-                            ,:13,:14,:15,:16,:17,:18,:19,:20,:21,:22
-                            ,:23,:24,:25)'
-                     using   lrec_ins.schd_cal_setup_id
-                           , lrec_ins.schd_cal_break_setup_id
-                           , lrec_ins.break_type
-                           , lrec_ins.plant_code
-                           , lrec_ins.area_id
-                           , lrec_ins.area_name
-                           , lrec_ins.shift_id
-                           , lrec_ins.shift_name
-                           , lrec_ins.team_id
-                           , lrec_ins.team_name
-                           , lrec_ins.start_dt
-                           , lrec_ins.start_dow
-                           , lrec_ins.start_hod
-                           , lrec_ins.start_moh
-                           , lrec_ins.end_dt
-                           , lrec_ins.end_dow
-                           , lrec_ins.end_hod
-                           , lrec_ins.end_moh
-                           , lrec_ins.dur_secs
-                           , lrec_ins.rotation_day
-                           , lrec_ins.rotation_days
-                           , lrec_ins.rotation_flag
-                           , lrec_ins.edited_flag
-                           , lrec_ins.activation_dt
-                           , lrec_ins.active_flag;
-                           
-                           case when lrec_ins.break_type = 0 then
-                           ln_cnt_shift := ln_cnt_shift + 1;
-                           when lrec_ins.break_type != 0 then
-                           ln_cnt_break := ln_cnt_break + 1;
-                           else
-                             null;
-                           end case;
+            BEGIN
+                CASE
+                    WHEN lrec_ins.break_type = 0
+                    THEN
+                        INSERT INTO watson.schd_cal_shift (schd_cal_setup_id
+                                                         , schd_cal_break_setup_id
+                                                         , break_type
+                                                         , plant_code
+                                                         , area_id
+                                                         , area_name
+                                                         , shift_id
+                                                         , shift_name
+                                                         , team_id
+                                                         , team_name
+                                                         , start_dt
+                                                         , start_dow
+                                                         , start_hod
+                                                         , start_moh
+                                                         , end_dt
+                                                         , end_dow
+                                                         , end_hod
+                                                         , end_moh
+                                                         , dur_secs
+                                                         , rotation_day
+                                                         , rotation_days
+                                                         , rotation_flag
+                                                         , edited_flag
+                                                         , activation_dt
+                                                         , active_flag)
+                             VALUES (lrec_ins.schd_cal_setup_id
+                                   , lrec_ins.schd_cal_break_setup_id
+                                   , lrec_ins.break_type
+                                   , lrec_ins.plant_code
+                                   , lrec_ins.area_id
+                                   , lrec_ins.area_name
+                                   , lrec_ins.shift_id
+                                   , lrec_ins.shift_name
+                                   , lrec_ins.team_id
+                                   , lrec_ins.team_name
+                                   , lrec_ins.start_dt
+                                   , lrec_ins.start_dow
+                                   , lrec_ins.start_hod
+                                   , lrec_ins.start_moh
+                                   , lrec_ins.end_dt
+                                   , lrec_ins.end_dow
+                                   , lrec_ins.end_hod
+                                   , lrec_ins.end_moh
+                                   , lrec_ins.dur_secs
+                                   , lrec_ins.rotation_day
+                                   , lrec_ins.rotation_days
+                                   , lrec_ins.rotation_flag
+                                   , lrec_ins.edited_flag
+                                   , lrec_ins.activation_dt
+                                   , lrec_ins.active_flag);
+
+                        ln_cnt_shift := ln_cnt_shift + 1;
+                    WHEN lrec_ins.break_type = 1
+                    THEN
+                        INSERT INTO watson.schd_cal_break (
+                                        schd_cal_setup_id
+                                      , schd_cal_break_setup_id
+                                      , break_type
+                                      , plant_code
+                                      , area_id
+                                      , area_name
+                                      , shift_id
+                                      , shift_name
+                                      , team_id
+                                      , team_name
+                                      , start_dt
+                                      , start_dow
+                                      , start_hod
+                                      , start_moh
+                                      , end_dt
+                                      , end_dow
+                                      , end_hod
+                                      , end_moh
+                                      , dur_secs
+                                      , rotation_day
+                                      , rotation_days
+                                      , rotation_flag
+                                      , edited_flag
+                                      , activation_dt
+                                      , active_flag)
+                             VALUES (lrec_ins.schd_cal_setup_id
+                                   , lrec_ins.schd_cal_break_setup_id
+                                   , lrec_ins.break_type
+                                   , lrec_ins.plant_code
+                                   , lrec_ins.area_id
+                                   , lrec_ins.area_name
+                                   , lrec_ins.shift_id
+                                   , lrec_ins.shift_name
+                                   , lrec_ins.team_id
+                                   , lrec_ins.team_name
+                                   , lrec_ins.start_dt
+                                   , lrec_ins.start_dow
+                                   , lrec_ins.start_hod
+                                   , lrec_ins.start_moh
+                                   , lrec_ins.end_dt
+                                   , lrec_ins.end_dow
+                                   , lrec_ins.end_hod
+                                   , lrec_ins.end_moh
+                                   , lrec_ins.dur_secs
+                                   , lrec_ins.rotation_day
+                                   , lrec_ins.rotation_days
+                                   , lrec_ins.rotation_flag
+                                   , lrec_ins.edited_flag
+                                   , lrec_ins.activation_dt
+                                   , lrec_ins.active_flag);
+
+                        ln_cnt_break := ln_cnt_break + 1;
+                    ELSE
+                        NULL;
+                END CASE;
             EXCEPTION
                 WHEN DUP_VAL_ON_INDEX
                 THEN
                     NULL;                                            -- IGNORE
+                WHEN OTHERS
+                THEN
+                    LOG (SQLERRM);
+                    RAISE;
             END;
         END LOOP;
 
-        dbms_output.put_line(ln_cnt_shift||' Rows Added to SCHD_CAL_SHIFT table');
-        dbms_output.put_line(ln_cnt_break||' Rows Added to SCHD_CAL_BREAK table');
+        LOG (ln_cnt_shift || ' Rows Added to SCHD_CAL_SHIFT table');
+        LOG (ln_cnt_break || ' Rows Added to SCHD_CAL_BREAK table');
 
         COMMIT;
     EXCEPTION

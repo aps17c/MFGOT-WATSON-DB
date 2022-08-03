@@ -31,6 +31,9 @@ AS
       , moh    NUMBER (2)
     );
 
+
+    PROCEDURE set_logging (p_enable_disable_flag IN VARCHAR2:= 'Y');
+
     FUNCTION validate_nbr_range (p_value         IN NUMBER
                                , p_limit_start   IN NUMBER
                                , p_limit_end     IN NUMBER)
